@@ -282,6 +282,8 @@ if __name__ == '__main__':
 	parser.add_argument('bc_loc', help='barcode location, specify start or end')
 	parser.add_argument('bc_len', type=int, help='length of barcode')
 	parser.add_argument('output_file', help='Name of output file')
+	parser.add_argument('--cutoff', type=int, help='user defined barcode cutoff, \
+		if not given then empirically determined (bootstrapped')
 	args = parser.parse_args()
 
 	check_args(args)
@@ -294,6 +296,7 @@ if __name__ == '__main__':
 	primer_len = args.primer_len
 	bc_loc = args.bc_loc
 	bc_len = args.bc_len
+
 
 	if file_type == 'fastq':
 		reads = fastq_reader(reads_file)
@@ -356,9 +359,12 @@ if __name__ == '__main__':
 
 	# bootstrap reference sequences to get a reference Levenshtein distribution 
 	# to determine cutoff
-	print "Bootstrapping reference sequences to obtain cutoff...", 
-	cutoff = bootstrap_levenshtein(lib, 10000)
-	print "cutoff is Levenshtein distance ", cutoff
+	if args.cutoff:
+		cutoff = args.cutoff
+	else:
+		print "Bootstrapping reference sequences to obtain cutoff...", 
+		cutoff = bootstrap_levenshtein(lib, 10000)
+		print "cutoff is Levenshtein distance ", cutoff
 
 	print "Filtering and writing results..."
 	final_barcodes = filter_barcodes(
