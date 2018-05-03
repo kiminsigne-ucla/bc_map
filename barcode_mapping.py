@@ -282,7 +282,7 @@ if __name__ == '__main__':
 	parser.add_argument('bc_loc', help='barcode location, specify start or end')
 	parser.add_argument('bc_len', type=int, help='length of barcode')
 	parser.add_argument('output_file', help='Name of output file')
-	parser.add_argument('--cutoff', type=int, help='user defined barcode cutoff, \
+	parser.add_argument('--cutoff', type=int, help='user defined Levenshtein cutoff, \
 		if not given then empirically determined (bootstrapped')
 	args = parser.parse_args()
 
