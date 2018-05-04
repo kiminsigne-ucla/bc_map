@@ -91,10 +91,11 @@ def library_reader(filename, primer_len, rev_complement=True, format = 'csv'):
 			if format == 'csv':
 				name, seq = line.strip().split(',')[:2]
 			elif format == 'tab':
-				name, seq = line.strip().split()[:2]
+				name, seq = line.strip().split('\t')[:2]
 			
 			seq = seq.upper()
-			seq = seq[primer_len:-primer_len]
+			if primer_len != 0:
+				seq = seq[primer_len:-primer_len]
 
 			if rev_complement:
 				rc_seq = reverse_complement(seq)
@@ -110,16 +111,27 @@ def find_perfect_reads(reads, lib, var_len, bc_loc):
 	Extract reads that perfectly match the library sequence
 	"""
 	# only take reads that perfectly match a reference sequence
-	# variant is after barcode
 	if bc_loc == 'start':
 		perfect_reads = [read for read in reads if read[-var_len:] in lib]
-	if bc_loc == 'end': # variant is first part of read
+	if bc_loc == 'end':
 		perfect_reads = [read for read in reads if read[:var_len] in lib]
-	
+
 	return perfect_reads
 
 
-def mapping(barcodes, perfect_reads, reads, bc_loc, bc_len, var_len):
+def find_perfect_controls(reads, controls):
+	perfect_reads = []
+	for read in reads:
+		for x in controls:
+			match = read.find(x)
+			if match > -1:
+				perfect_reads.append(read)
+				break
+	return perfect_reads
+
+	
+
+def mapping(barcodes, perfect_reads, reads, bc_loc, bc_len, var_len, controls=None):
 
 	variant_map = defaultdict(list)
 	barcode_map = defaultdict(list)
@@ -144,7 +156,14 @@ def mapping(barcodes, perfect_reads, reads, bc_loc, bc_len, var_len):
 		elif bc_loc == 'end':
 			variant = read[:var_len]
 			barcode = read[-bc_len:]
-			
+
+		if controls:
+			# pos controls are not variant length, so check for this
+			for x in controls:
+				match = read.find(x)
+				if match > -1:
+					variant = read[:(match + len(x))]
+
 		variant_map[variant].append(barcode)
 
 	return [variant_map, barcode_map]
@@ -173,7 +192,7 @@ def bootstrap_levenshtein(lib, n):
 
 
 def filter_barcodes(barcode_map, cutoff, bc_loc, bc_len, var_len, 
-	name='output.txt', lib=None):
+	name, lib, controls=None):
 	'''
 	For each barcode, calculate the Levenshtein distance between its reads
 	and if it is below cutoff (aka barcode maps to similar reads, no cross-talk)
@@ -201,6 +220,17 @@ def filter_barcodes(barcode_map, cutoff, bc_loc, bc_len, var_len,
 			trimmed = [read[:var_len] for read in reads]
 		# grab most common read as reference
 		most_common = Counter(trimmed).most_common(1)[0][0]
+
+		# check if most common is a positive control, shorten trimmed reads to appropriate length
+		if controls:
+			for x in controls:
+				match = most_common.find(x)
+				if match > -1:
+					new_var_length = match + len(x)
+					most_common = most_common[:new_var_length]
+					trimmed = [read[:new_var_length] for read in reads]
+					break
+
 		# calculate distance between each read and reference
 		distances = [Levenshtein.distance(most_common, read) for read in set(trimmed)]
 		all_dist.append(max(distances))
@@ -284,6 +314,9 @@ if __name__ == '__main__':
 	parser.add_argument('output_file', help='Name of output file')
 	parser.add_argument('--cutoff', type=int, help='user defined Levenshtein cutoff, \
 		if not given then empirically determined (bootstrapped')
+	parser.add_argument('--controls', help='Control library file if length shorter \
+		than variant library, .csv or .txt (tab) format, file type determined from extension')
+	parser.add_argument('--controls_primer_len', type=int, help='primer length for control file')
 	args = parser.parse_args()
 
 	check_args(args)
@@ -296,7 +329,6 @@ if __name__ == '__main__':
 	primer_len = args.primer_len
 	bc_loc = args.bc_loc
 	bc_len = args.bc_len
-
 
 	if file_type == 'fastq':
 		reads = fastq_reader(reads_file)
@@ -317,6 +349,21 @@ if __name__ == '__main__':
 		rev_complement=True, 
 		format=lib_type)
 
+	if args.controls:
+		if args.controls.endswith('txt'):
+			lib_type = 'tab'
+		elif args.controls.endswith('csv'):
+			lib_type = 'csv'
+		else:
+			raise Exception("Please provide control file in .csv or .txt format")
+		controls = library_reader(
+			filename=args.controls,
+			primer_len=args.controls_primer_len,
+			rev_complement=True,
+			format=lib_type)
+	else:
+		controls = None
+
 	print "Extracting perfect reads..."
 	perfect_reads = find_perfect_reads(
 		reads=reads, 
@@ -325,6 +372,11 @@ if __name__ == '__main__':
 		bc_loc=bc_loc)	
 
 	print "Percent perfect:", len(perfect_reads) / float(len(reads))
+
+	if controls:
+		perfect_control_reads = find_perfect_controls(reads, controls)
+		print "Percent perfect controls:", len(perfect_control_reads) / float(len(reads))
+		perfect_reads.extend(perfect_control_reads)
 
 	# grab barcodes that map to a perfect sequence
 	if bc_loc == 'start':
@@ -355,7 +407,8 @@ if __name__ == '__main__':
 		reads, 
 		bc_loc, 
 		bc_len, 
-		var_len)
+		var_len,
+		controls)
 
 	# bootstrap reference sequences to get a reference Levenshtein distribution 
 	# to determine cutoff
