@@ -7,11 +7,14 @@ test file to help with errors.
 up your conda environment, installing all the necessary packages. 
 - An example command is in example.sh
 - It accepts as input a reads file in either FASTQ (unzipped), FASTA, or text 
-format (one read per line). It assumes the read structure is barcode-variant or variant-barcode. The location of the barcode, the length of the barcode, and the length of the variant are parameters passed into the script. 
+format (one read per line). It assumes the read structure is barcode-variant or 
+variant-barcode. The location of the barcode, the length of the barcode, and the
+length of the variant are parameters passed into the script. 
 - The library file is the file you submitted for array synthesis. It must be in 
-either csv or tab format, with the name as the first field and the sequence as the second
-- The primer length is used to trim the primer sequences from the beginning and end
-of the library file
+either csv or tab format, with the name as the first field and the sequence 
+as the second
+- The primer length is used to trim the primer sequences from the beginning and
+ end of the library file
 - The script will only look for reads that perfectly match a library sequence, the
 script will output the percentage of reads which are perfect
 - For barcodes attached to these perfect reads, we keep those that appear at least
@@ -23,9 +26,14 @@ two library sequences and determine the Levenshtein distance. We repeat this 10,
 times to bootstrap the Levenshtein distribution. We take the lower 1% percentile of
 this distribution to be the cutoff. 
 	- For the set of reads that map to a barcode, we set the most common read to be
-	the reference. We then calculate the Levenshtein distance between each read and the reference. The maximum Levenshtein distance must be below the cutoff in order for the barcode to pass this filtering step.
+	the reference. We then calculate the Levenshtein distance between each read 
+	and the reference. The maximum Levenshtein distance must be below the cutoff 
+	in order for the barcode to pass this filtering step.
+- There are optional parameters if your control sequences are shorter than your
+variant library as these need to be mapped separately.
 - The script will output how many barcodes pass all filtering and how much of the 
 library is covered by these barcodes
 - The file barcode_statistics.txt lists all the barcodes that passed filtering and
 should be considered for downstream barcode RNA sequencing
-- The file variant_statistics.txt lists the variant sequence, the variant name, the total number of barcodes, the number of unique barcodes, and the list of unique barcodes
+- The file variant_statistics.txt lists the variant sequence, the variant name, 
+the total number of barcodes, the number of unique barcodes, and the list of unique barcodes
