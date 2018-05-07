@@ -106,16 +106,35 @@ def library_reader(filename, primer_len, rev_complement=True, format = 'csv'):
 	return lib
 
 
-def find_perfect_reads(reads, lib, var_len, bc_loc):
+def find_perfect_reads(reads, lib, var_len, bc_loc, controls=None):
 	"""
 	Extract reads that perfectly match the library sequence
 	"""
-	# only take reads that perfectly match a reference sequence
-	if bc_loc == 'start':
-		perfect_reads = [read for read in reads if read[-var_len:] in lib]
-	if bc_loc == 'end':
-		perfect_reads = [read for read in reads if read[:var_len] in lib]
+	# # only take reads that perfectly match a reference sequence
+	# if bc_loc == 'start':
+	# 	perfect_reads = [read for read in reads if read[-var_len:] in lib]
+	# if bc_loc == 'end':
+	# 	perfect_reads = [read for read in reads if read[:var_len] in lib]
 
+	# return perfect_reads
+	perfect_reads = []
+	for i in range(len(reads)):
+		read = reads[i]
+		if i % 1000000 == 0:
+			print i
+		if bc_loc == 'start':
+			variant = read[-var_len:]
+		if bc_loc == 'end':
+			variant = read[:var_len]
+
+		if variant in lib: 
+			perfect_reads.append(read)
+
+		if controls:
+			for x in controls:
+				match = read.find(x)
+				if match > -1:
+					perfect_reads.append(read)
 	return perfect_reads
 
 
@@ -202,6 +221,8 @@ def filter_barcodes(barcode_map, cutoff, bc_loc, bc_len, var_len,
 	final_barcodes = []
 	covered_sequences = set()
 	lib = set(lib.keys()) # for faster lookup
+	if controls:
+		lib = lib.update(set(controls.keys()))
 
 	all_dist = []
 
@@ -256,21 +277,20 @@ def filter_barcodes(barcode_map, cutoff, bc_loc, bc_len, var_len,
 
 	coverage = len(covered_sequences)/ float((len(lib)/2.0))
 	print "Percent of library represented by final barcodes:", coverage
-	
-
-	# with open('lev_dist.txt', 'w') as outfile:
-	# 	for dist in all_dist:
-	# 		outfile.write(str(dist)+'\n')
 
 	return final_barcodes
 
 
-def write_variant_results(variant_map, name, final_barcodes, lib):
+def write_variant_results(variant_map, name, final_barcodes, lib, controls=None):
 	outfile = open(name, 'w')
 	fields = ['variant', 'name', 'num_barcodes', 'num_barcodes_unique', 'barcodes']
 	outfile.write('\t'.join(fields)+'\n')
 
 	final_barcodes = set(final_barcodes)
+
+	if controls:
+		# variants are already trimmed to exactly match control sequences
+		lib.update(controls)
 
 	for variant in variant_map:
 
@@ -280,7 +300,10 @@ def write_variant_results(variant_map, name, final_barcodes, lib):
 		num_barcodes = len(barcodes)
 		uniq_bcs = set(barcodes)
 		num_unique = len(uniq_bcs)
-		ref_name = lib[variant]
+		ref_name = lib.get(variant, None)
+		if not ref_name:
+			continue
+		# ref_name = lib[variant]
 		info = [variant, ref_name, num_barcodes, num_unique]
 		info = map(str, info)
 		info.append(','.join(uniq_bcs))
@@ -311,7 +334,7 @@ if __name__ == '__main__':
 		start and end of sequences in library file')
 	parser.add_argument('bc_loc', help='barcode location, specify start or end')
 	parser.add_argument('bc_len', type=int, help='length of barcode')
-	parser.add_argument('output_file', help='Name of output file')
+	parser.add_argument('output_prefix', help='Name of output file prefix')
 	parser.add_argument('--cutoff', type=int, help='user defined Levenshtein cutoff, \
 		if not given then empirically determined (bootstrapped')
 	parser.add_argument('--controls', help='Control library file if length shorter \
@@ -329,6 +352,7 @@ if __name__ == '__main__':
 	primer_len = args.primer_len
 	bc_loc = args.bc_loc
 	bc_len = args.bc_len
+	output_prefix = args.output_prefix
 
 	if file_type == 'fastq':
 		reads = fastq_reader(reads_file)
@@ -369,14 +393,15 @@ if __name__ == '__main__':
 		reads=reads, 
 		lib=lib, 
 		var_len=var_len, 
-		bc_loc=bc_loc)	
+		bc_loc=bc_loc,
+		controls=controls)	
 
 	print "Percent perfect:", len(perfect_reads) / float(len(reads))
 
-	if controls:
-		perfect_control_reads = find_perfect_controls(reads, controls)
-		print "Percent perfect controls:", len(perfect_control_reads) / float(len(reads))
-		perfect_reads.extend(perfect_control_reads)
+	# if controls:
+	# 	perfect_control_reads = find_perfect_controls(reads, controls)
+	# 	print "Percent perfect controls:", len(perfect_control_reads) / float(len(reads))
+	# 	perfect_reads.extend(perfect_control_reads)
 
 	# grab barcodes that map to a perfect sequence
 	if bc_loc == 'start':
@@ -426,12 +451,12 @@ if __name__ == '__main__':
 		bc_loc,
 		bc_len,
 		var_len,
-		'barcode_statistics.txt', 
+		output_prefix + '_barcode_statistics.txt', 
 		lib)
 
 	print "Number of final barcodes: ", len(final_barcodes)
 	# write final barcodes to file
-	outfile = open(args.output_file, 'w')
+	outfile = open(output_prefix + '_mapped_barcodes.txt', 'w')
 	for barcode in final_barcodes:
 		outfile.write(barcode+'\n')
 	outfile.close()
@@ -439,7 +464,8 @@ if __name__ == '__main__':
 	# write variant results
 	write_variant_results(
 		variant_map, 
-		'variant_statistics.txt', 
+		output_prefix + '_variant_statistics.txt', 
 		final_barcodes, 
-		lib)
+		lib, 
+		controls)
 
