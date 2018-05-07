@@ -26,16 +26,12 @@ two library sequences and determine the Levenshtein distance. We repeat this 10,
 times to bootstrap the Levenshtein distribution. We take the lower 1% percentile of
 this distribution to be the cutoff. 
 	- For the set of reads that map to a barcode, we set the most common read to be
-<<<<<<< HEAD
 	the reference. We then calculate the Levenshtein distance between each read 
 	and the reference. The maximum Levenshtein distance must be below the cutoff 
-	in order for the barcode to pass this filtering step.
+	in order for the barcode to pass this filtering step. Optionally, users may 
+	define their own cutoff
 - There are optional parameters if your control sequences are shorter than your
 variant library as these need to be mapped separately.
-=======
-	the reference. We then calculate the Levenshtein distance between each read and the reference. The maximum Levenshtein distance must be below the cutoff in order for the barcode to pass this filtering step.
-- Optionally, users may define their own cutoff
->>>>>>> 6bb0d2b1e5c6c99e7277de787e51584c2c5c6e70
 - The script will output how many barcodes pass all filtering and how much of the 
 library is covered by these barcodes
 - The file barcode_statistics.txt lists all the barcodes that passed filtering and
